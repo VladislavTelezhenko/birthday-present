@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>С днем рождения!</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(-45deg, #0d0221, #1a0a38, #0a1830, #1e0d3a, #07122a, #180535);
+      background-size: 400% 400%;
+      animation: bgShift 18s ease infinite;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    @keyframes bgShift {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+
+    #stars    { z-index: 0; }
+    #fireworks { z-index: 1; }
+    #confetti  { z-index: 2; }
+
+    .container {
+      position: relative;
+      z-index: 10;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+
+    .header h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #ff6b6b, #ffd700, #ff6bff, #6bffff, #ffd700, #ff6b6b);
+      background-size: 300% 100%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmer 4s linear infinite;
+    }
+
+    @keyframes shimmer {
+      0%   { background-position: 0% 50%; }
+      100% { background-position: 300% 50%; }
+    }
+
+    .subtitle {
+      margin-top: 12px;
+      color: rgba(255,255,255,0.45);
+      font-size: 0.95rem;
+      letter-spacing: 0.3px;
+    }
+
+    /* ── Cards grid ── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 28px;
+    }
+
+    @media (max-width: 580px) {
+      .cards-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Flip card ── */
+    .card-wrapper {
+      perspective: 1200px;
+      height: 340px;
+    }
+
+    .card {
+      width: 100%; height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.75s cubic-bezier(0.4, 0.2, 0.2, 1);
+      cursor: pointer;
+    }
+
+    .card.flipped { transform: rotateY(180deg); }
+
+    .card-face {
+      position: absolute;
+      inset: 0;
+      border-radius: 18px;
+      backface-visibility: hidden;
+      overflow: hidden;
+    }
+
+    /* ── Front ── */
+    .card-front {
+      background: #13132a;
+      border: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-front:hover { border-color: rgba(255,215,0,0.25); }
+
+    .cover {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cover img {
+      position: absolute;
+      inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+
+    /* ── Back ── */
+    .card-back {
+      transform: rotateY(180deg);
+      background: linear-gradient(135deg, #1a0a38 0%, #0a1830 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 24px 20px;
+      text-align: center;
+      border: 1px solid rgba(255,215,0,0.25);
+    }
+
+    .back-text {
+      color: rgba(255,255,255,0.9);
+      font-size: 1.1rem;
+      line-height: 1.7;
+    }
+
+    .key-block {
+      width: 100%;
+      background: rgba(255,215,0,0.07);
+      border: 1px solid rgba(255,215,0,0.25);
+      border-radius: 12px;
+      padding: 12px 16px;
+    }
+
+    .key-value {
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      font-size: 1rem;
+      letter-spacing: 2px;
+      user-select: all;
+    }
+
+    .copy-btn {
+      margin-top: 10px;
+      padding: 7px 18px;
+      background: rgba(255,215,0,0.12);
+      border: 1px solid rgba(255,215,0,0.4);
+      border-radius: 8px;
+      color: #ffd700;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .copy-btn:hover { background: rgba(255,215,0,0.25); }
+  </style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+<canvas id="fireworks"></canvas>
+<canvas id="confetti"></canvas>
+
+<div class="container">
+  <div class="header">
+    <h1>🎂 С днем рождения, братик! 🎂</h1>
+  </div>
+
+  <div class="cards-grid" id="grid"></div>
+</div>
+
+<script>
+  /* ── Cards ── */
+  const games = [
+    {
+      title: 'Days Gone',
+      cover: 'https://cdn.cloudflare.steamstatic.com/steam/apps/1259420/library_600x900.jpg',
+      gradient: 'linear-gradient(135deg, #2d5a1b 0%, #0d1f0a 100%)',
+      greeting: 'Открывай этот мир и не оглядывайся назад!\nЖелаю тебе стойкости и воли — как у Дикона на шоссе.',
+      key: 'XXXXX-XXXXX-XXXXX'
+    },
+    {
+      title: 'Stray',
+      cover: 'https://cdn.cloudflare.steamstatic.com/steam/apps/1332010/library_600x900.jpg',
+      gradient: 'linear-gradient(135deg, #3d1a6b 0%, #0f0824 100%)',
+      greeting: 'Пусть жизнь будет такой же уютной\nи полной открытий, как у рыжего кота.',
+      key: 'XXXXX-XXXXX-XXXXX'
+    },
+    {
+      title: 'DEATH STRANDING',
+      cover: 'https://cdn.cloudflare.steamstatic.com/steam/apps/1850570/library_600x900.jpg',
+      gradient: 'linear-gradient(135deg, #0d3a4f 0%, #05121a 100%)',
+      greeting: 'Желаю всегда находить связь с теми,\nкто важен. Держи мир вместе.',
+      key: 'XXXXX-XXXXX-XXXXX'
+    },
+    {
+      title: "No Man's Sky",
+      cover: 'https://cdn.cloudflare.steamstatic.com/steam/apps/275850/library_600x900.jpg',
+      gradient: 'linear-gradient(135deg, #0d1f5e 0%, #05081f 100%)',
+      greeting: 'Целая вселенная — твоя!\nПусть каждый день открывает новые горизонты.',
+      key: 'XXXXX-XXXXX-XXXXX'
+    }
+  ];
+
+  const grid = document.getElementById('grid');
+
+  games.forEach((g, i) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'card-wrapper';
+    wrapper.innerHTML = `
+      <div class="card" id="card${i}">
+        <div class="card-face card-front" onclick="flip(${i})">
+          <div class="cover" style="background:${g.gradient}">
+            <img src="${g.cover}" alt="${g.title}">
+          </div>
+        </div>
+        <div class="card-face card-back" onclick="flip(${i})">
+          <div class="back-text">${g.greeting.replace(/\n/g,'<br>')}</div>
+          <div class="key-block">
+            <div class="key-value" id="key${i}">${g.key}</div>
+            <button class="copy-btn" onclick="copy(event,${i})">📋 Скопировать</button>
+          </div>
+        </div>
+      </div>
+    `;
+    grid.appendChild(wrapper);
+  });
+
+  function flip(i) {
+    document.getElementById('card' + i).classList.toggle('flipped');
+  }
+
+  function copy(e, i) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(document.getElementById('key' + i).textContent);
+    const btn = e.target;
+    btn.textContent = '✅ Скопировано!';
+    setTimeout(() => btn.textContent = '📋 Скопировать', 2000);
+  }
+
+  /* ── Canvas setup ── */
+  const stC = document.getElementById('stars');
+  const fwC = document.getElementById('fireworks');
+  const cfC = document.getElementById('confetti');
+  const stX = stC.getContext('2d');
+  const fwX = fwC.getContext('2d');
+  const cfX = cfC.getContext('2d');
+
+  function resize() {
+    stC.width = fwC.width = cfC.width = window.innerWidth;
+    stC.height = fwC.height = cfC.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  /* ── Stars ── */
+  const stars = Array.from({ length: 200 }, () => ({
+    x: Math.random() * stC.width,
+    y: Math.random() * stC.height,
+    r: Math.random() * 1.4 + 0.2,
+    alpha: Math.random(),
+    speed: Math.random() * 0.012 + 0.004,
+    dir: Math.random() > 0.5 ? 1 : -1
+  }));
+
+  function loopStars() {
+    stX.clearRect(0, 0, stC.width, stC.height);
+    stars.forEach(s => {
+      s.alpha += s.speed * s.dir;
+      if (s.alpha >= 1)    { s.alpha = 1;    s.dir = -1; }
+      if (s.alpha <= 0.05) { s.alpha = 0.05; s.dir =  1; }
+      stX.globalAlpha = s.alpha;
+      stX.fillStyle = '#ffffff';
+      stX.beginPath();
+      stX.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      stX.fill();
+    });
+    stX.globalAlpha = 1;
+    requestAnimationFrame(loopStars);
+  }
+
+  /* ── Fireworks ── */
+  const FW_COLORS = ['#ff6b6b','#ffd700','#ffffff','#6bffff','#ff6bff','#6bff6b','#ffaa6b'];
+
+  class Spark {
+    constructor(x, y, color) {
+      this.x = x; this.y = y; this.color = color;
+      const a = Math.random() * Math.PI * 2;
+      const s = Math.random() * 7 + 2;
+      this.vx = Math.cos(a) * s;
+      this.vy = Math.sin(a) * s;
+      this.alpha = 1;
+      this.decay = Math.random() * 0.018 + 0.008;
+      this.r = Math.random() * 2 + 1;
+    }
+    tick() {
+      this.x += this.vx; this.y += this.vy;
+      this.vy += 0.12;   this.vx *= 0.99;
+      this.alpha -= this.decay;
+    }
+    draw() {
+      fwX.globalAlpha = Math.max(0, this.alpha);
+      fwX.fillStyle = this.color;
+      fwX.beginPath();
+      fwX.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      fwX.fill();
+    }
+  }
+
+  let sparks = [];
+
+  function burst() {
+    const x = fwC.width  * (0.1 + Math.random() * 0.8);
+    const y = fwC.height * (0.05 + Math.random() * 0.55);
+    const c = FW_COLORS[Math.floor(Math.random() * FW_COLORS.length)];
+    for (let i = 0; i < 90; i++) sparks.push(new Spark(x, y, c));
+  }
+
+  function loopFW() {
+    fwX.clearRect(0, 0, fwC.width, fwC.height);
+    sparks = sparks.filter(s => s.alpha > 0);
+    sparks.forEach(s => { s.tick(); s.draw(); });
+    fwX.globalAlpha = 1;
+    requestAnimationFrame(loopFW);
+  }
+
+  /* ── Confetti ── */
+  const CF_COLORS = ['#ff6b6b','#ffd700','#6bff6b','#6b9fff','#ff6bff','#ffaa6b','#ffffff'];
+
+  const flakes = Array.from({ length: 140 }, () => ({
+    x: Math.random() * window.innerWidth,
+    y: Math.random() * -window.innerHeight,
+    w: Math.random() * 10 + 4,
+    h: Math.random() * 5 + 3,
+    color: CF_COLORS[Math.floor(Math.random() * CF_COLORS.length)],
+    speed: Math.random() * 2.5 + 0.8,
+    drift: (Math.random() - 0.5) * 1.2,
+    angle: Math.random() * Math.PI * 2,
+    spin:  (Math.random() - 0.5) * 0.12,
+  }));
+
+  function loopCF() {
+    cfX.clearRect(0, 0, cfC.width, cfC.height);
+    flakes.forEach(f => {
+      cfX.save();
+      cfX.translate(f.x, f.y);
+      cfX.rotate(f.angle);
+      cfX.fillStyle = f.color;
+      cfX.globalAlpha = 0.85;
+      cfX.fillRect(-f.w / 2, -f.h / 2, f.w, f.h);
+      cfX.restore();
+      f.y += f.speed; f.x += f.drift; f.angle += f.spin;
+      if (f.y > cfC.height + 10) { f.y = -20; f.x = Math.random() * cfC.width; }
+    });
+    requestAnimationFrame(loopCF);
+  }
+
+  /* ── Start ── */
+  loopStars();
+  loopFW();
+  loopCF();
+  burst(); setTimeout(burst, 400); setTimeout(burst, 900);
+  setInterval(burst, 1800);
+</script>
+</body>
+</html>
