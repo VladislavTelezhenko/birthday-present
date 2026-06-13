@@ -29,10 +29,102 @@
       pointer-events: none;
     }
 
-    #stars    { z-index: 0; }
+    #stars     { z-index: 0; }
     #fireworks { z-index: 1; }
     #confetti  { z-index: 2; }
 
+    /* ── Password screen ── */
+    #gate {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gate-box {
+      background: rgba(15, 5, 35, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,215,0,0.25);
+      border-radius: 24px;
+      padding: 48px 40px;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+
+    .gate-emoji { font-size: 3rem; margin-bottom: 16px; }
+
+    .gate-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .gate-sub {
+      color: rgba(255,255,255,0.45);
+      font-size: 0.9rem;
+      margin-bottom: 28px;
+    }
+
+    .gate-input {
+      width: 100%;
+      padding: 13px 18px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 1.1rem;
+      letter-spacing: 2px;
+      text-align: center;
+      outline: none;
+      margin-bottom: 16px;
+      transition: border-color 0.2s;
+    }
+
+    .gate-input:focus { border-color: rgba(255,215,0,0.5); }
+
+    .gate-btn {
+      width: 100%;
+      padding: 13px;
+      background: linear-gradient(90deg, #7b2ff7, #4a6cf7);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .gate-btn:hover { opacity: 0.85; }
+
+    .gate-error {
+      color: #ff6b6b;
+      font-size: 0.85rem;
+      margin-top: 12px;
+      min-height: 20px;
+    }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%,60%  { transform: translateX(-8px); }
+      40%,80%  { transform: translateX(8px); }
+    }
+
+    .shake { animation: shake 0.4s ease; }
+
+    #gate.hidden {
+      animation: fadeOut 0.6s ease forwards;
+    }
+
+    @keyframes fadeOut {
+      to { opacity: 0; pointer-events: none; }
+    }
+
+    /* ── Main content ── */
     .container {
       position: relative;
       z-index: 10;
@@ -41,7 +133,6 @@
       padding: 48px 24px 64px;
     }
 
-    /* ── Header ── */
     .header {
       text-align: center;
       margin-bottom: 56px;
@@ -62,13 +153,6 @@
     @keyframes shimmer {
       0%   { background-position: 0% 50%; }
       100% { background-position: 300% 50%; }
-    }
-
-    .subtitle {
-      margin-top: 12px;
-      color: rgba(255,255,255,0.45);
-      font-size: 0.95rem;
-      letter-spacing: 0.3px;
     }
 
     /* ── Cards grid ── */
@@ -118,10 +202,6 @@
 
     .cover {
       flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 2.5rem;
       position: relative;
       overflow: hidden;
     }
@@ -190,76 +270,145 @@
 <canvas id="fireworks"></canvas>
 <canvas id="confetti"></canvas>
 
+<!-- Password gate -->
+<div id="gate">
+  <div class="gate-box">
+    <div class="gate-emoji">🎁</div>
+    <div class="gate-title">Здесь твой подарок</div>
+    <div class="gate-sub">Введи кодовое слово, чтобы открыть</div>
+    <input class="gate-input" id="pwInput" type="password" placeholder="••••••••••••••" autocomplete="off">
+    <button class="gate-btn" onclick="unlock()">Открыть →</button>
+    <div class="gate-error" id="pwError"></div>
+  </div>
+</div>
+
 <div class="container">
   <div class="header">
     <h1>🎂 С днем рождения, братик! 🎂</h1>
   </div>
-
   <div class="cards-grid" id="grid"></div>
 </div>
 
 <script>
-  /* ── Cards ── */
-  const games = [
+  /* ── Encrypted card data ── */
+  const SALT = 'bday-gift-2024';
+
+  const CARDS = [
     {
       title: 'Days Gone',
       cover: 'https://cdn.cloudflare.steamstatic.com/steam/apps/1259420/library_600x900.jpg',
       gradient: 'linear-gradient(135deg, #2d5a1b 0%, #0d1f0a 100%)',
-      greeting: 'Открывай этот мир и не оглядывайся назад!\nЖелаю тебе стойкости и воли — как у Дикона на шоссе.',
-      key: 'XXXXX-XXXXX-XXXXX'
+      eg: 'd7D9khSWpO14C06r+vi5lyIwCNMyGkaZx9/9NVvHASSGiDTErSsyeMdW98tN7qDqnve8w618bom2WG/ZV7dcaSXJ/DDW0A1wQH+aNX+ld9yKay/tkD+fqoGJHrp7jFFsDYHbgdzCIKp7W4Y4AHAKOCVp29fJrEwuIJrBHMXTb0dXQtPKl8t+OFdhgzM2wq7tmlgyd4ZhpAIuVSE+Edtcr2Z0+bO5pMLqAA+KaDVwKF8HVeKFDfAhUEkU7AA69nsiFOEqNklq',
+      ek: 'qvyhPIcKePFJk1NW/2c9e9QPijicfORf41FCZcUmbTKgg3UYT2UbBRPU1+oy'
     },
     {
       title: 'Stray',
       cover: 'https://cdn.cloudflare.steamstatic.com/steam/apps/1332010/library_600x900.jpg',
       gradient: 'linear-gradient(135deg, #3d1a6b 0%, #0f0824 100%)',
-      greeting: 'Пусть жизнь будет такой же уютной\nи полной открытий, как у рыжего кота.',
-      key: 'XXXXX-XXXXX-XXXXX'
+      eg: 'FkhWeuBlLY6hRcnk8AhXRj3MrgMbOzU95tQ6dahygXBS7xU945Yv1ydImAbo7wsUqJ1u7RfqQi/tWG+9B8Qyid+4mXABsFN07Q0NHPj2bR/kk3EgQtwAiUCIjZu/vwf4ewogTiIT5qqT0rBQW4t/+koCdqlOrWD1nIEfyXI3MSAzHUUHOMnZj7khCSXteJMMMD06lALI1zi2/aKs',
+      ek: 'ZrDOoTnrpHF2mhEzDtT9kttLfcvhJgTSCKDKMaLvQGEGaUU13EI2RK2Po08h'
     },
     {
       title: 'DEATH STRANDING',
       cover: 'https://cdn.cloudflare.steamstatic.com/steam/apps/1850570/library_600x900.jpg',
       gradient: 'linear-gradient(135deg, #0d3a4f 0%, #05121a 100%)',
-      greeting: 'Желаю всегда находить связь с теми,\nкто важен. Держи мир вместе.',
-      key: 'XXXXX-XXXXX-XXXXX'
+      eg: 'Sd5uWCkiYjP4oQPKh2fHjB5+91jwTLlsoBzyYcPO5qMFJNkZs8/v7jBEb/quCeBWUxApbqd0d6s+ptGof1Q5ClIO2meqh/afeVdCJJA9N4GJgSzsm8vR7NNpZLcKvEPE27w5N7DhhAzvYqFeXaOBe3dHd6nj501CRCG2C41Nf5nrAEJR0YX9EdBI5bEfVpE=',
+      ek: 'zq4e/2lUb+tyEFXKtKAGNoa6uFX0WseCAFCnH5XDoPs39nKqQeYDvEHeg+u5'
     },
     {
       title: "No Man's Sky",
       cover: 'https://cdn.cloudflare.steamstatic.com/steam/apps/275850/library_600x900.jpg',
       gradient: 'linear-gradient(135deg, #0d1f5e 0%, #05081f 100%)',
-      greeting: 'Целая вселенная — твоя!\nПусть каждый день открывает новые горизонты.',
-      key: 'XXXXX-XXXXX-XXXXX'
+      eg: 'DBcYRbOQlxVy+mcM2ZLRmpcWhQfMIASy69doloaIpZtcGojTXFDaLO9FMnJyKtaP4+GpQLuWNApd75zQkQ9wEJybgn2NopflfG3uL5m8ZSmurdholHhRJ5txOKIBA4W2Ko1kzpBUKP7zqXeWySSKgHD3KdTTCIZ8bpnSB5uHy7Bs8a4n9CVG9NWJiYMzl2LwN0kLLuHOUJCJMA==',
+      ek: 'SeQ5v9HYTWux9IYBm30dyAMbjnDuU6brfFdLfPPdgpFB2PGI9mxHmgVmwV3p'
     }
   ];
 
-  const grid = document.getElementById('grid');
+  /* ── Crypto helpers ── */
+  async function deriveKey(password, usage) {
+    const enc = new TextEncoder();
+    const km = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: enc.encode(SALT), iterations: 100000, hash: 'SHA-256' },
+      km,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      [usage]
+    );
+  }
 
-  games.forEach((g, i) => {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'card-wrapper';
-    wrapper.innerHTML = `
-      <div class="card" id="card${i}">
-        <div class="card-face card-front" onclick="flip(${i})">
-          <div class="cover" style="background:${g.gradient}">
-            <img src="${g.cover}" alt="${g.title}">
-          </div>
-        </div>
-        <div class="card-face card-back" onclick="flip(${i})">
-          <div class="back-text">${g.greeting.replace(/\n/g,'<br>')}</div>
-          <div class="key-block">
-            <div class="key-value" id="key${i}">${g.key}</div>
-            <button class="copy-btn" onclick="copy(event,${i})">📋 Скопировать</button>
-          </div>
-        </div>
-      </div>
-    `;
-    grid.appendChild(wrapper);
+  async function decrypt(b64, key) {
+    const buf = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const pt  = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: buf.slice(0, 12) }, key, buf.slice(12));
+    return new TextDecoder().decode(pt);
+  }
+
+  /* ── Password gate ── */
+  document.getElementById('pwInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') unlock();
   });
+
+  async function unlock() {
+    const pw  = document.getElementById('pwInput').value;
+    const err = document.getElementById('pwError');
+    err.textContent = '';
+
+    try {
+      const key = await deriveKey(pw, 'decrypt');
+      const greeting0 = await decrypt(CARDS[0].eg, key);
+
+      /* Password correct — decrypt all and render */
+      const decrypted = await Promise.all(
+        CARDS.map(async c => ({
+          greeting: await decrypt(c.eg, key),
+          key:      await decrypt(c.ek, key)
+        }))
+      );
+
+      renderCards(decrypted);
+      document.getElementById('gate').classList.add('hidden');
+      setTimeout(() => document.getElementById('gate').remove(), 700);
+
+    } catch {
+      err.textContent = 'Неверный пароль';
+      const box = document.querySelector('.gate-box');
+      box.classList.remove('shake');
+      void box.offsetWidth;
+      box.classList.add('shake');
+    }
+  }
+
+  /* ── Render cards after unlock ── */
+  function renderCards(decrypted) {
+    const grid = document.getElementById('grid');
+    CARDS.forEach((g, i) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'card-wrapper';
+      wrapper.innerHTML = `
+        <div class="card" id="card${i}">
+          <div class="card-face card-front" onclick="flip(${i})">
+            <div class="cover" style="background:${g.gradient}">
+              <img src="${g.cover}" alt="${g.title}">
+            </div>
+          </div>
+          <div class="card-face card-back" onclick="flip(${i})">
+            <div class="back-text">${decrypted[i].greeting.replace(/\n/g,'<br>')}</div>
+            <div class="key-block">
+              <div class="key-value" id="key${i}">${decrypted[i].key}</div>
+              <button class="copy-btn" onclick="copyKey(event,${i})">📋 Скопировать</button>
+            </div>
+          </div>
+        </div>
+      `;
+      grid.appendChild(wrapper);
+    });
+  }
 
   function flip(i) {
     document.getElementById('card' + i).classList.toggle('flipped');
   }
 
-  function copy(e, i) {
+  function copyKey(e, i) {
     e.stopPropagation();
     navigator.clipboard.writeText(document.getElementById('key' + i).textContent);
     const btn = e.target;
